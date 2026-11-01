@@ -1,0 +1,74 @@
+name: Release Standalone Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-binaries:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-amd64
+            binary_name: aayi-linux-amd64
+          - os: macos-latest
+            target: darwin-arm64
+            binary_name: aayi-darwin-arm64
+          - os: macos-13
+            target: darwin-amd64
+            binary_name: aayi-darwin-amd64
+          - os: windows-latest
+            target: windows-amd64
+            binary_name: aayi-windows-amd64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies & PyInstaller
+        run: |
+          uv sync
+          uv pip install pyinstaller
+
+      - name: Build Standalone Binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          uv run pyinstaller --onefile --name ${{ matrix.binary_name }} src/aayi/cli/main.py
+          chmod +x dist/${{ matrix.binary_name }}
+
+      - name: Build Standalone Binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          uv run pyinstaller --onefile --name ${{ matrix.binary_name }} src/aayi/cli/main.py
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: dist/${{ matrix.binary_name }}
+
+  publish-release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release-binaries
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-binaries/*/*
+          generate_release_notes: true

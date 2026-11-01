@@ -57,16 +57,21 @@ Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
 
 ### 1. Installation
 
-Run directly with `uvx` (no installation required):
+**One-line standalone installer (Zero dependencies, no Python/pip needed):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ahmed/aayi/main/install.sh | bash
+```
+
+**Or run instantly with `uvx` (no installation required):**
 ```bash
 uvx aayi --help
 ```
 
-Or install in your Python virtual environment using `uv`:
+**Or install via `uv tool` or `pip`:**
 ```bash
 uv tool install aayi
 # or
-uv add --dev aayi
+pip install aayi
 ```
 
 ### 2. Initialize Your Project
