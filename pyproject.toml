@@ -1,6 +1,6 @@
 [project]
 name = "aayi"
-version = "0.2.1"
+version = "0.2.2"
 description = "Deploy Docker apps to any server with zero downtime and automatic HTTPS"
 readme = "README.md"
 authors = [
