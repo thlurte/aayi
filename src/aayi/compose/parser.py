@@ -181,6 +181,8 @@ def convert_compose_to_deploy_yaml(
             s_dict["image"] = s_def.image
         if s_def.build_context:
             s_dict["build_context"] = s_def.build_context
+        if s_def.dockerfile and s_def.dockerfile != "Dockerfile":
+            s_dict["dockerfile"] = s_def.dockerfile
         if s_def.public and s_def.all_domains:
             s_dict["domain"] = s_def.domain
             if s_def.domains:
