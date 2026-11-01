@@ -3,6 +3,7 @@
 from pathlib import Path
 from typer.testing import CliRunner
 
+from aayi import __version__
 from aayi.cli.main import app
 
 runner = CliRunner()
@@ -11,7 +12,7 @@ runner = CliRunner()
 def test_cli_version():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "Aayi version 0.1.0" in result.stdout
+    assert f"Aayi version {__version__}" in result.stdout
 
 
 def test_cli_init_generates_files(tmp_path: Path, monkeypatch):
