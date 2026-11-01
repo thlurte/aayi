@@ -56,6 +56,14 @@ class Deployer:
         self.builder = DockerBuilder()
         self.tar_builder = RemoteTarBuilder(self.runner)
 
+    @staticmethod
+    def resolve_image_tag(image_base: str, tag: Optional[str] = None, default_revision: str = "latest") -> str:
+        """Resolve full image tag without creating duplicate tags (e.g. avoid image:prod:latest)."""
+        if ":" in image_base:
+            base_part, existing_tag = image_base.split(":", 1)
+            return f"{base_part}:{tag or existing_tag}"
+        return f"{image_base}:{tag or default_revision}"
+
     def _resolve_env_vars(self, service_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         """Combine clear text env vars with resolved secrets from local environment."""
         env: Dict[str, str] = dict(self.config.env.clear)
@@ -108,7 +116,7 @@ class Deployer:
             console.rule("[bold cyan]Remote Build: Streaming Source via In-Memory Tar Archive[/bold cyan]")
             for s_def in ordered_services:
                 image_base = s_def.image or self.config.image or s_def.name
-                full_image_tag = f"{image_base}:{revision}"
+                full_image_tag = self.resolve_image_tag(image_base, tag, revision)
                 for host in all_hosts:
                     await self.tar_builder.stream_and_build(
                         host=host,
@@ -126,7 +134,7 @@ class Deployer:
                 if build and (s_def.build_context or s_def.dockerfile):
                     self.builder.build_and_push(
                         image_base=image_base,
-                        tag=revision,
+                        tag=tag or revision,
                         dockerfile=s_def.dockerfile or "Dockerfile",
                         context=s_def.build_context or ".",
                         push=push,
@@ -137,7 +145,7 @@ class Deployer:
             for s_def in ordered_services:
                 image_base = s_def.image or self.config.image
                 if image_base:
-                    full_image_tag = f"{image_base}:{revision}"
+                    full_image_tag = self.resolve_image_tag(image_base, tag, revision)
                     if is_direct:
                         await self.remote_docker.stream_image_to_hosts(all_hosts, full_image_tag)
                     else:
@@ -155,7 +163,7 @@ class Deployer:
             image_base = s_def.image or self.config.image
             if not image_base:
                 continue
-            full_image_tag = f"{image_base}:{revision}"
+            full_image_tag = self.resolve_image_tag(image_base, tag, revision)
             env_vars = self._resolve_env_vars(s_def.env.clear)
 
             if s_def.public and s_def.all_domains:
