@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Aayi Installer Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/<YOUR_USER>/aayi/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/thlurte/aayi/main/install.sh | bash
 
 set -euo pipefail
 
-REPO="${AAYI_REPO:-ahmed/aayi}"
+REPO="${AAYI_REPO:-thlurte/aayi}"
 INSTALL_DIR="${AAYI_INSTALL_DIR:-${HOME}/.local/bin}"
 
 # Detect OS

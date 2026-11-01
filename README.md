@@ -59,7 +59,7 @@ Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
 
 **One-line standalone installer (Zero dependencies, no Python/pip needed):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ahmed/aayi/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/thlurte/aayi/main/install.sh | bash
 ```
 
 **Or run instantly with `uvx` (no installation required):**
