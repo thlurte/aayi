@@ -76,6 +76,21 @@ class EnvConfig(BaseModel):
     clear: Dict[str, str] = Field(default_factory=dict, description="Plaintext environment variables")
     secret: List[str] = Field(default_factory=list, description="Names of secret environment variables to resolve")
 
+    @field_validator("clear", mode="before")
+    @classmethod
+    def coerce_clear_env(cls, v: Any) -> Dict[str, str]:
+        if not isinstance(v, dict):
+            return {}
+        result: Dict[str, str] = {}
+        for k, val in v.items():
+            if val is None:
+                result[str(k)] = ""
+            elif isinstance(val, (int, float, bool)):
+                result[str(k)] = str(val)
+            else:
+                result[str(k)] = str(val)
+        return result
+
 
 class ServiceDefinition(BaseModel):
     """Configuration for an individual service container (Compose / Multi-service)."""

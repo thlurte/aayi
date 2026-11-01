@@ -81,3 +81,22 @@ servers:
 
     with pytest.raises(ValidationError):
         load_config(config_file)
+
+
+def test_env_config_scalar_and_null_coercion():
+    from aayi.config.models import EnvConfig
+
+    raw_env = {
+        "PORT": 8080,
+        "DEBUG": True,
+        "RATIO": 3.14,
+        "EMPTY": None,
+        "STRING": "already_str",
+    }
+    cfg = EnvConfig(clear=raw_env)
+    assert cfg.clear["PORT"] == "8080"
+    assert cfg.clear["DEBUG"] == "True"
+    assert cfg.clear["RATIO"] == "3.14"
+    assert cfg.clear["EMPTY"] == ""
+    assert cfg.clear["STRING"] == "already_str"
+
