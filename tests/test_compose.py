@@ -92,3 +92,27 @@ def test_convert_compose_to_deploy_yaml(tmp_path: Path):
     assert "app.example.com" in yaml_output
     assert "api.example.com" in yaml_output
     assert "worker:" in yaml_output
+
+
+def test_convert_compose_with_custom_dockerfile(tmp_path: Path):
+    compose_content = """
+services:
+  migrate:
+    image: myuser/migrate:prod
+    build:
+      context: data
+      dockerfile: Dockerfile.migrate
+  custom:
+    image: myuser/custom:prod
+    build:
+      context: .
+      dockerfile: custom/Dockerfile
+"""
+    compose_file = tmp_path / "docker-compose.yml"
+    compose_file.write_text(compose_content, encoding="utf-8")
+
+    yaml_output = convert_compose_to_deploy_yaml(compose_file)
+    assert "build_context: data" in yaml_output
+    assert "dockerfile: Dockerfile.migrate" in yaml_output
+    assert "dockerfile: custom/Dockerfile" in yaml_output
+
