@@ -37,3 +37,31 @@ def test_generate_caddyfile_tls_off():
     assert "local.test {" in caddyfile
     assert "tls off" in caddyfile
     assert "reverse_proxy 127.0.0.1:8080" in caddyfile
+
+
+def test_generate_multi_service_caddyfile_with_private_containers():
+    from aayi.proxy.caddy import ServiceRoute
+
+    runner = SSHFleetRunner()
+    proxy_cfg = ProxyConfig(email="admin@example.com")
+    manager = CaddyManager(runner, proxy_cfg)
+
+    routes = [
+        ServiceRoute(service_name="web", domains=["app.example.com"], target_port=3000),
+        ServiceRoute(service_name="api", domains=["api.example.com", "v1.example.com"], target_port=8000),
+        # Private service has no domains and is not routed in Caddy
+        ServiceRoute(service_name="worker", domains=[], target_port=0),
+    ]
+
+    caddyfile = manager.generate_multi_service_caddyfile(routes)
+
+    # Public services are present
+    assert "app.example.com {" in caddyfile
+    assert "reverse_proxy 127.0.0.1:3000" in caddyfile
+    assert "api.example.com v1.example.com {" in caddyfile
+    assert "reverse_proxy 127.0.0.1:8000" in caddyfile
+
+    # Private service is completely omitted from Caddyfile
+    assert "worker {" not in caddyfile
+    assert "127.0.0.1:0" not in caddyfile
+

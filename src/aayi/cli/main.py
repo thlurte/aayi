@@ -12,6 +12,7 @@ from rich.console import Console
 from aayi import __version__
 from aayi.cli.ci import init_github_actions
 from aayi.cli.init import init_project
+from aayi.compose.parser import convert_compose_to_deploy_yaml, parse_compose_file
 from aayi.config.loader import load_config
 from aayi.orchestrator.accessories import AccessoryManager
 from aayi.orchestrator.deployer import Deployer
@@ -28,10 +29,12 @@ app = typer.Typer(
 proxy_app = typer.Typer(help="Manage Caddy reverse proxy on remote hosts.")
 accessory_app = typer.Typer(help="Manage attached stateful accessories (Postgres, Redis, etc.).")
 ci_app = typer.Typer(help="Manage CI/CD workflows (GitHub Actions, etc.).")
+compose_app = typer.Typer(help="Docker Compose file management and conversion.")
 
 app.add_typer(proxy_app, name="proxy")
 app.add_typer(accessory_app, name="accessory")
 app.add_typer(ci_app, name="ci")
+app.add_typer(compose_app, name="compose")
 
 console = Console()
 
@@ -81,25 +84,53 @@ def setup(
 @app.command()
 def deploy(
     config_path: Path = typer.Option("config/deploy.yml", "--config", "-c", help="Path to deploy.yml"),
+    compose: Optional[Path] = typer.Option(None, "--compose", help="Deploy directly from a docker-compose.yml file"),
+    service: Optional[str] = typer.Option(None, "--service", "-s", help="Deploy only a specific service container"),
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Custom image tag / git revision to deploy"),
     build: bool = typer.Option(True, "--build/--no-build", help="Build image locally before deployment"),
     push: bool = typer.Option(True, "--push/--no-push", help="Push image to registry after building"),
 ) -> None:
     """Run full zero-downtime deployment: build, push, healthcheck, and swap Caddy traffic."""
-    cfg = load_config(config_path)
+    if compose:
+        cfg = parse_compose_file(compose)
+    else:
+        cfg = load_config(config_path)
+
     deployer = Deployer(cfg)
-    asyncio.run(deployer.deploy(tag=tag, build=build, push=push))
+    asyncio.run(deployer.deploy(tag=tag, build=build, push=push, target_service=service))
 
 
 @app.command()
 def redeploy(
     config_path: Path = typer.Option("config/deploy.yml", "--config", "-c", help="Path to deploy.yml"),
+    compose: Optional[Path] = typer.Option(None, "--compose", help="Deploy directly from a docker-compose.yml file"),
+    service: Optional[str] = typer.Option(None, "--service", "-s", help="Redeploy only a specific service container"),
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Tag to redeploy without rebuilding"),
 ) -> None:
     """Redeploy an existing image tag on remote servers without rebuilding."""
-    cfg = load_config(config_path)
+    if compose:
+        cfg = parse_compose_file(compose)
+    else:
+        cfg = load_config(config_path)
+
     deployer = Deployer(cfg)
-    asyncio.run(deployer.deploy(tag=tag, build=False, push=False))
+    asyncio.run(deployer.deploy(tag=tag, build=False, push=False, target_service=service))
+
+
+@compose_app.command("convert")
+def compose_convert(
+    compose_path: Path = typer.Option("docker-compose.yml", "--compose", "-f", help="Path to docker-compose.yml"),
+    host: str = typer.Option("192.168.1.10", "--host", "-h", help="Target server IP for deploy.yml"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write to file instead of stdout (e.g. config/deploy.yml)"),
+) -> None:
+    """Convert an existing docker-compose.yml into an Aayi config/deploy.yml."""
+    yaml_text = convert_compose_to_deploy_yaml(compose_path, web_host=host)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(yaml_text, encoding="utf-8")
+        console.print(f"[green]✓ Successfully generated {output}[/green]")
+    else:
+        console.print(yaml_text)
 
 
 @app.command()

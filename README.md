@@ -10,9 +10,14 @@ Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
 
 - **Zero-Downtime Container Swaps**: Seamlessly routes traffic between container revisions via Caddy's dynamic in-memory Admin API (`:2019`).
 - **Automatic HTTPS**: Full TLS certificate lifecycle via Let's Encrypt / ZeroSSL powered by Caddy.
+- **Docker Compose & Multi-Container**: Deploy multi-service applications directly from `docker-compose.yml` or multi-service `deploy.yml`.
+- **Public vs. Private Containers**:
+  - **Public**: Dedicated domain per container (e.g. `app.example.com` and `api.example.com`) with automatic Caddy TLS.
+  - **Private**: Background workers, databases, and microservices connected to internal `aayi-net` with **no host port exposure**.
 - **Concurrent SSH Execution**: Asynchronous, parallel multi-server operations powered by `AsyncSSH`.
 - **Type-Safe Declarative Config**: Strict validation of `config/deploy.yml` with friendly Pydantic v2 error messages.
-- **No Ruby Required**: Built for Python developers (FastAPI, Django, Flask, Litestar) who want Kamal's simplicity without installing Ruby/gem bundlers.
+- **GitHub Actions Ready**: Out-of-the-box CI/CD generator (`aayi ci init`).
+- **No Ruby Required**: Built for Python developers who want Kamal's simplicity without installing Ruby/gem bundlers.
 - **Stateful Accessories**: Easily spin up and manage PostgreSQL, Redis, or MySQL containers with persistent Docker volumes.
 - **Instant Rollback**: Revert Caddy upstreams back to the prior container in milliseconds with `aayi rollback`.
 

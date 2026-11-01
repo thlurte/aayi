@@ -1,8 +1,9 @@
-"""Caddy reverse proxy manager with dynamic zero-downtime upstream routing."""
+"""Caddy reverse proxy manager with dynamic zero-downtime multi-domain routing."""
 
 from __future__ import annotations
 
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 from rich.console import Console
 
@@ -15,6 +16,15 @@ CADDY_CONTAINER_NAME = "aayi-caddy"
 CADDY_DOCKER_IMAGE = "caddy:2.8-alpine"
 
 
+@dataclass
+class ServiceRoute:
+    """Upstream routing specification for a public service container."""
+    service_name: str
+    domains: List[str]
+    target_port: int
+    tls: bool = True
+
+
 class CaddyManager:
     """Manages Caddy on remote hosts and updates routing via Caddy's dynamic admin API."""
 
@@ -23,11 +33,17 @@ class CaddyManager:
         self.config = config
 
     def generate_caddyfile(self, target_port: int, domains: Optional[List[str]] = None) -> str:
-        """Generate a Caddyfile pointing to the specified target port."""
-        domains = domains or self.config.all_domains
-        if not domains:
-            domains = [":80"]
+        """Generate a single-service Caddyfile pointing to the specified target port."""
+        route = ServiceRoute(
+            service_name="default",
+            domains=domains or self.config.all_domains,
+            target_port=target_port,
+            tls=self.config.tls,
+        )
+        return self.generate_multi_service_caddyfile([route])
 
+    def generate_multi_service_caddyfile(self, routes: List[ServiceRoute]) -> str:
+        """Generate a Caddyfile containing routing blocks for all public services."""
         lines: List[str] = [
             "{\n  admin 127.0.0.1:2019\n"
         ]
@@ -35,14 +51,22 @@ class CaddyManager:
             lines.append(f"  email {self.config.email}\n")
         lines.append("}\n\n")
 
-        domain_list = " ".join(domains)
-        lines.append(f"{domain_list} {{\n")
-        if not self.config.tls:
-            lines.append("  tls off\n")
-        lines.append(f"  reverse_proxy 127.0.0.1:{target_port} {{\n")
-        lines.append("    lb_try_duration 5s\n")
-        lines.append("  }\n")
-        lines.append("}\n")
+        valid_routes = [r for r in routes if r.domains]
+        if not valid_routes:
+            # Fallback if no public domains defined
+            lines.append(":80 {\n  respond \"Aayi - No public services configured\" 200\n}\n")
+            return "".join(lines)
+
+        for route in valid_routes:
+            domain_list = " ".join(route.domains)
+            lines.append(f"# Service: {route.service_name}\n")
+            lines.append(f"{domain_list} {{\n")
+            if not route.tls:
+                lines.append("  tls off\n")
+            lines.append(f"  reverse_proxy 127.0.0.1:{route.target_port} {{\n")
+            lines.append("    lb_try_duration 5s\n")
+            lines.append("  }\n")
+            lines.append("}\n\n")
 
         return "".join(lines)
 
@@ -50,7 +74,6 @@ class CaddyManager:
         """Ensure Caddy is running in a host-networked Docker container on each host."""
         console.print("[bold blue]Checking Caddy reverse proxy on hosts...[/bold blue]")
 
-        # Check if container exists and is running
         check_cmd = f"docker inspect -f '{{{{.State.Running}}}}' {CADDY_CONTAINER_NAME} 2>/dev/null || echo 'false'"
         results = await self.runner.run_on_hosts(hosts, check_cmd, echo=False)
 
@@ -79,9 +102,17 @@ class CaddyManager:
     async def update_upstream(self, hosts: List[str], target_port: int) -> List[SSHResult]:
         """Dynamically load new routing into Caddy's dynamic Admin API without restarting."""
         caddyfile_content = self.generate_caddyfile(target_port)
-        console.print(f"[bold cyan]Switching Caddy traffic to upstream port {target_port} across hosts...[/bold cyan]")
+        return await self._apply_caddyfile(hosts, caddyfile_content, summary=f"port {target_port}")
 
-        # Escape single quotes for bash Heredoc
+    async def update_multi_service_routes(self, hosts: List[str], routes: List[ServiceRoute]) -> List[SSHResult]:
+        """Dynamically update Caddy with routes for multiple public services and their respective domains."""
+        caddyfile_content = self.generate_multi_service_caddyfile(routes)
+        summary = ", ".join([f"{r.service_name} -> {r.target_port}" for r in routes if r.domains]) or "no public routes"
+        return await self._apply_caddyfile(hosts, caddyfile_content, summary=summary)
+
+    async def _apply_caddyfile(self, hosts: List[str], caddyfile_content: str, summary: str) -> List[SSHResult]:
+        """Post Caddyfile directly to Caddy's /load endpoint across hosts."""
+        console.print(f"[bold cyan]Updating Caddy dynamic routing ({summary})...[/bold cyan]")
         update_cmd = (
             f"curl -s -f -X POST http://127.0.0.1:2019/load "
             f"-H 'Content-Type: text/caddyfile' "
@@ -89,10 +120,11 @@ class CaddyManager:
         )
         results = await self.runner.run_on_hosts(hosts, update_cmd, echo=False)
         for res in results:
+            color = self.runner.get_host_color(res.host)
             if res.success:
-                console.print(f"[{self.runner.get_host_color(res.host)}][{res.host}][/{self.runner.get_host_color(res.host)}] [green]✓ Traffic switched to port {target_port}[/green]")
+                console.print(f"[{color}][{res.host}][/{color}] [green]✓ Caddy dynamic routes updated.[/green]")
             else:
-                console.print(f"[{self.runner.get_host_color(res.host)}][{res.host}][/{self.runner.get_host_color(res.host)}] [red]Failed to switch Caddy upstream: {res.stderr}[/red]")
+                console.print(f"[{color}][{res.host}][/{color}] [red]Failed to update Caddy routes: {res.stderr}[/red]")
         return results
 
     async def get_status(self, hosts: List[str]) -> List[SSHResult]:

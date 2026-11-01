@@ -86,27 +86,35 @@ class RemoteDocker:
         except ValueError:
             return base_port
 
+    async def ensure_network(self, hosts: List[str], network: str = "aayi-net") -> None:
+        """Ensure an internal Docker bridge network exists on all hosts."""
+        cmd = f"docker network inspect {network} >/dev/null 2>&1 || docker network create {network}"
+        await self.runner.run_on_hosts(hosts, cmd, echo=False)
+
     async def boot_container(
         self,
         host: str,
         name: str,
         image_tag: str,
-        host_port: int,
+        host_port: Optional[int],
         container_port: int,
         env_vars: Dict[str, str],
         labels: Dict[str, str],
         command: Optional[str] = None,
+        network: str = "aayi-net",
     ) -> SSHResult:
-        """Start a new application container bound to 127.0.0.1:<host_port>."""
+        """Start an application container. If host_port is None, container is private with no host port binding."""
         env_flags = " ".join([f"-e {k}='{v}'" for k, v in env_vars.items()])
         label_flags = " ".join([f"--label {k}='{v}'" for k, v in labels.items()])
         cmd_suffix = f" {command}" if command else ""
+        port_flag = f"-p 127.0.0.1:{host_port}:{container_port}" if host_port else ""
 
         run_cmd = (
             f"docker run -d "
             f"--name {name} "
+            f"--network {network} "
             f"--restart unless-stopped "
-            f"-p 127.0.0.1:{host_port}:{container_port} "
+            f"{port_flag} "
             f"{env_flags} "
             f"{label_flags} "
             f"{image_tag}{cmd_suffix}"
