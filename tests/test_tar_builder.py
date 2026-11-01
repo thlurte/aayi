@@ -47,3 +47,16 @@ def test_create_in_memory_archive_filtering(tmp_path: Path):
         assert ".venv/lib.py" not in names
         assert "__pycache__" not in names
         assert "secret.env" not in names
+
+
+def test_ssh_runner_key_backward_compatibility():
+    from aayi.ssh.runner import SSHFleetRunner
+
+    runner = SSHFleetRunner(default_key="/path/to/key.pem")
+    assert runner.default_key == "/path/to/key.pem"
+    assert runner.default_keys == ["/path/to/key.pem"]
+
+    multi_runner = SSHFleetRunner(default_keys=["/k1.pem", "/k2.pem"])
+    assert multi_runner.default_key == "/k1.pem"
+    assert multi_runner.default_keys == ["/k1.pem", "/k2.pem"]
+

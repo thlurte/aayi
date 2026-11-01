@@ -83,17 +83,18 @@ class RemoteTarBuilder:
     ) -> None:
         """Bundle source in memory, stream over SSH, and run Docker build natively on the VPS."""
         color = self.runner.get_host_color(host)
-        remote_dir = f"/var/aayi/builds/{service}"
+        remote_dir = f"~/.aayi/builds/{service}"
 
         console.print(f"[{color}][{host}][/{color}] [bold cyan]Creating in-memory compressed archive...[/bold cyan]")
         archive_bytes = create_in_memory_archive(context)
         size_mb = len(archive_bytes) / (1024 * 1024)
         console.print(f"[{color}][{host}][/{color}] Compressed size: [green]{size_mb:.2f} MB[/green]. Streaming over SSH...")
 
-        # 1. Stream archive to remote host and extract
         options = asyncssh.SSHClientConnectionOptions(
             known_hosts=self.runner.known_hosts,
-            client_keys=[self.runner.default_key] if self.runner.default_key else None,
+            client_keys=self.runner.default_keys,
+            password=self.runner.password,
+            passphrase=self.runner.passphrase,
         )
 
         async with asyncssh.connect(
@@ -103,7 +104,7 @@ class RemoteTarBuilder:
             options=options,
         ) as conn:
             extract_cmd = f"rm -rf {remote_dir} && mkdir -p {remote_dir} && tar -xzf - -C {remote_dir}"
-            async with conn.create_process(extract_cmd) as proc:
+            async with conn.create_process(extract_cmd, encoding=None) as proc:
                 proc.stdin.write(archive_bytes)
                 await proc.stdin.drain()
                 proc.stdin.close()
