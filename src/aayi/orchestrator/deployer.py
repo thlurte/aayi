@@ -11,6 +11,7 @@ from rich.console import Console
 from aayi.config.models import DeployConfig, ServiceDefinition
 from aayi.docker.builder import DockerBuilder, get_git_revision
 from aayi.docker.remote import RemoteDocker
+from aayi.docker.tar_builder import RemoteTarBuilder
 from aayi.proxy.caddy import CaddyManager, ServiceRoute
 from aayi.ssh.runner import SSHFleetRunner
 
@@ -50,6 +51,7 @@ class Deployer:
         self.remote_docker = RemoteDocker(self.runner)
         self.caddy = CaddyManager(self.runner, config.proxy)
         self.builder = DockerBuilder()
+        self.tar_builder = RemoteTarBuilder(self.runner)
 
     def _resolve_env_vars(self, service_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         """Combine clear text env vars with resolved secrets from local environment."""
@@ -71,6 +73,7 @@ class Deployer:
         build: bool = True,
         push: bool = True,
         target_service: Optional[str] = None,
+        remote_build: bool = False,
     ) -> None:
         """Execute the end-to-end multi-container zero-downtime deployment."""
         revision = tag or get_git_revision()
@@ -94,32 +97,48 @@ class Deployer:
         await self.remote_docker.ensure_network(all_hosts, network="aayi-net")
 
         # Step 2: Login to registry on target servers
-        await self.remote_docker.login_registry(all_hosts, self.config.registry)
+        if not remote_build:
+            await self.remote_docker.login_registry(all_hosts, self.config.registry)
 
-        # Step 3: Build & push locally if requested
-        for s_def in ordered_services:
-            image_base = s_def.image or self.config.image
-            if not image_base:
-                continue
-            if build and (s_def.build_context or s_def.dockerfile):
-                self.builder.build_and_push(
-                    image_base=image_base,
-                    tag=revision,
-                    dockerfile=s_def.dockerfile or "Dockerfile",
-                    context=s_def.build_context or ".",
-                    push=push,
-                )
-
-        # Step 4: Transfer or pull images on target hosts
-        is_direct = (not self.config.registry or not self.config.registry.server or not push)
-        for s_def in ordered_services:
-            image_base = s_def.image or self.config.image
-            if image_base:
+        # Step 3: Build step (Remote tar streaming vs Local buildx)
+        if remote_build:
+            console.rule("[bold cyan]Remote Build: Streaming Source via In-Memory Tar Archive[/bold cyan]")
+            for s_def in ordered_services:
+                image_base = s_def.image or self.config.image or s_def.name
                 full_image_tag = f"{image_base}:{revision}"
-                if is_direct:
-                    await self.remote_docker.stream_image_to_hosts(all_hosts, full_image_tag)
-                else:
-                    await self.remote_docker.pull_image(all_hosts, full_image_tag)
+                for host in all_hosts:
+                    await self.tar_builder.stream_and_build(
+                        host=host,
+                        service=s_def.name,
+                        image_tag=full_image_tag,
+                        context=s_def.build_context or ".",
+                        dockerfile=s_def.dockerfile or "Dockerfile",
+                    )
+        else:
+            # Local build & push
+            for s_def in ordered_services:
+                image_base = s_def.image or self.config.image
+                if not image_base:
+                    continue
+                if build and (s_def.build_context or s_def.dockerfile):
+                    self.builder.build_and_push(
+                        image_base=image_base,
+                        tag=revision,
+                        dockerfile=s_def.dockerfile or "Dockerfile",
+                        context=s_def.build_context or ".",
+                        push=push,
+                    )
+
+            # Step 4: Transfer or pull images on target hosts
+            is_direct = (not self.config.registry or not self.config.registry.server or not push)
+            for s_def in ordered_services:
+                image_base = s_def.image or self.config.image
+                if image_base:
+                    full_image_tag = f"{image_base}:{revision}"
+                    if is_direct:
+                        await self.remote_docker.stream_image_to_hosts(all_hosts, full_image_tag)
+                    else:
+                        await self.remote_docker.pull_image(all_hosts, full_image_tag)
 
         # Step 5: Ensure Caddy is running on web hosts if any public service exists
         has_public = any(s.public and s.all_domains for s in ordered_services)

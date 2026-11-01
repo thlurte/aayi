@@ -89,6 +89,7 @@ def deploy(
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Custom image tag / git revision to deploy"),
     build: bool = typer.Option(True, "--build/--no-build", help="Build image locally before deployment"),
     push: bool = typer.Option(True, "--push/--no-push", help="Push image to registry after building"),
+    remote_build: bool = typer.Option(False, "--remote-build", "-r", help="Stream source in memory via tar and build natively on the VPS (no registry needed)."),
 ) -> None:
     """Run full zero-downtime deployment: build, push, healthcheck, and swap Caddy traffic."""
     if compose:
@@ -97,7 +98,7 @@ def deploy(
         cfg = load_config(config_path)
 
     deployer = Deployer(cfg)
-    asyncio.run(deployer.deploy(tag=tag, build=build, push=push, target_service=service))
+    asyncio.run(deployer.deploy(tag=tag, build=build, push=push, target_service=service, remote_build=remote_build))
 
 
 @app.command()
