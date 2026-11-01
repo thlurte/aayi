@@ -110,12 +110,16 @@ class Deployer:
                     push=push,
                 )
 
-        # Step 4: Pull images on target hosts
+        # Step 4: Transfer or pull images on target hosts
+        is_direct = (not self.config.registry or not self.config.registry.server or not push)
         for s_def in ordered_services:
             image_base = s_def.image or self.config.image
             if image_base:
                 full_image_tag = f"{image_base}:{revision}"
-                await self.remote_docker.pull_image(all_hosts, full_image_tag)
+                if is_direct:
+                    await self.remote_docker.stream_image_to_hosts(all_hosts, full_image_tag)
+                else:
+                    await self.remote_docker.pull_image(all_hosts, full_image_tag)
 
         # Step 5: Ensure Caddy is running on web hosts if any public service exists
         has_public = any(s.public and s.all_domains for s in ordered_services)

@@ -66,6 +66,33 @@ class RemoteDocker:
         for r in results:
             console.print(f"[{self.runner.get_host_color(r.host)}][{r.host}][/{self.runner.get_host_color(r.host)}] [green]✓ Image pulled.[/green]")
 
+    async def stream_image_to_hosts(self, hosts: List[str], image_tag: str) -> None:
+        """Stream locally built image directly to remote hosts over SSH without an external registry."""
+        console.print(f"[bold cyan]Streaming image [cyan]{image_tag}[/cyan] directly over SSH to hosts (no registry required)...[/bold cyan]")
+        save_proc = await asyncio.create_subprocess_exec(
+            "docker", "save", image_tag,
+            stdout=asyncio.subprocess.PIPE,
+        )
+        image_data, _ = await save_proc.communicate()
+
+        async def _load_on_host(host: str) -> None:
+            color = self.runner.get_host_color(host)
+            console.print(f"[{color}][{host}][/{color}] Loading image via SSH stream...")
+            import asyncssh
+            options = asyncssh.SSHClientConnectionOptions(
+                known_hosts=self.runner.known_hosts,
+                client_keys=[self.runner.default_key] if self.runner.default_key else None,
+            )
+            async with asyncssh.connect(host, port=self.runner.default_port, username=self.runner.default_user, options=options) as conn:
+                proc = await conn.create_process("docker load")
+                proc.stdin.write(image_data)
+                await proc.stdin.drain()
+                proc.stdin.close()
+                await proc.wait()
+                console.print(f"[{color}][{host}][/{color}] [green]✓ Image loaded directly.[/green]")
+
+        await asyncio.gather(*[_load_on_host(h) for h in hosts])
+
     async def find_available_port(self, host: str, base_port: int = 8000) -> int:
         """Find an unused TCP port on the remote host starting from base_port."""
         # Use python to probe for an unbound port on localhost
