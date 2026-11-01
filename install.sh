@@ -29,6 +29,11 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}
 echo "🚀 Installing Aayi (${OS}/${ARCH})..."
 mkdir -p "${INSTALL_DIR}"
 
+if [ "${AAYI_DRY_RUN:-0}" = "1" ]; then
+  echo "✅ Dry run successful: target binary is ${BINARY_NAME} from ${DOWNLOAD_URL}"
+  exit 0
+fi
+
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL "${DOWNLOAD_URL}" -o "${INSTALL_DIR}/aayi"
 elif command -v wget >/dev/null 2>&1; then
