@@ -1,7 +1,7 @@
 [project]
 name = "aayi"
 version = "0.1.0"
-description = "Add your description here"
+description = "Deploy Docker apps to any server with zero downtime and automatic HTTPS"
 readme = "README.md"
 authors = [
     { name = "Ahmed", email = "thlurte@gmail.com" }

@@ -2,32 +2,32 @@
   <img src="assets/banner.jpeg" alt="Aayi - Modern Cloud Deployment Dev Tool" width="100%">
 </p>
 
-# Aayi 🚀
+# Aayi
 
-**A modern, Python-native equivalent of Ruby's Kamal.** Deploy containerized web apps anywhere—from $5 VPSs (Hetzner, DigitalOcean) to bare metal—with zero downtime, automated HTTPS, and zero Kubernetes complexity.
+Deploy Docker apps to any server with zero downtime and automatic HTTPS.
 
-Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
+Built with uv, AsyncSSH, Typer, Pydantic, and Caddy.
 
 ---
 
-## ✨ Features
+## Features
 
-- **Zero-Downtime Container Swaps**: Seamlessly routes traffic between container revisions via Caddy's dynamic in-memory Admin API (`:2019`).
+- **Zero-Downtime Container Swaps**: Routes traffic between container revisions via Caddy's dynamic in-memory Admin API (`:2019`).
 - **Automatic HTTPS**: Full TLS certificate lifecycle via Let's Encrypt / ZeroSSL powered by Caddy.
 - **Docker Compose & Multi-Container**: Deploy multi-service applications directly from `docker-compose.yml` or multi-service `deploy.yml`.
 - **Public vs. Private Containers**:
   - **Public**: Dedicated domain per container (e.g. `app.example.com` and `api.example.com`) with automatic Caddy TLS.
-  - **Private**: Background workers, databases, and microservices connected to internal `aayi-net` with **no host port exposure**.
-- **Concurrent SSH Execution**: Asynchronous, parallel multi-server operations powered by `AsyncSSH`.
+  - **Private**: Background workers, databases, and microservices connected to internal `aayi-net` with no host port exposure.
+- **Concurrent SSH Execution**: Asynchronous, parallel multi-server operations powered by AsyncSSH.
 - **Type-Safe Declarative Config**: Strict validation of `config/deploy.yml` with friendly Pydantic v2 error messages.
 - **GitHub Actions Ready**: Out-of-the-box CI/CD generator (`aayi ci init`).
-- **No Ruby Required**: Built for Python developers who want Kamal's simplicity without installing Ruby/gem bundlers.
-- **Stateful Accessories**: Easily spin up and manage PostgreSQL, Redis, or MySQL containers with persistent Docker volumes.
+- **No Ruby Required**: Built for developers who want Kamal's simplicity without installing Ruby or gem bundlers.
+- **Stateful Accessories**: Spin up and manage PostgreSQL, Redis, or MySQL containers with persistent Docker volumes.
 - **Instant Rollback**: Revert Caddy upstreams back to the prior container in milliseconds with `aayi rollback`.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
                                  [ CLI: aayi ]
@@ -57,21 +57,21 @@ Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
 
 ---
 
-## ⚡ Quickstart
+## Quickstart
 
 ### 1. Installation
 
-**One-line standalone installer (Zero dependencies, no Python/pip needed):**
+**One-line standalone installer (Zero dependencies, no Python or pip needed):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/thlurte/aayi/main/install.sh | bash
 ```
 
-**Or run instantly with `uvx` (no installation required):**
+**Or run instantly with uvx (no installation required):**
 ```bash
 uvx aayi --help
 ```
 
-**Or install via `uv tool` or `pip`:**
+**Or install via uv tool or pip:**
 ```bash
 uv tool install aayi
 # or
@@ -136,7 +136,7 @@ aayi deploy
 
 ---
 
-## 🛠️ Command Reference
+## Command Reference
 
 | Command | Description |
 | :--- | :--- |
@@ -156,7 +156,7 @@ aayi deploy
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 uv run pytest -v
@@ -164,6 +164,6 @@ uv run pytest -v
 
 ---
 
-## 📄 License
+## License
 
 MIT
