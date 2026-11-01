@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.jpeg" alt="Aayi - Modern Cloud Deployment Dev Tool" width="100%">
+</p>
+
 # Aayi 🚀
 
 **A modern, Python-native equivalent of Ruby's Kamal.** Deploy containerized web apps anywhere—from $5 VPSs (Hetzner, DigitalOcean) to bare metal—with zero downtime, automated HTTPS, and zero Kubernetes complexity.
