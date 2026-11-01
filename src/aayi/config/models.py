@@ -12,7 +12,10 @@ class ServerConfig(BaseModel):
     workers: List[str] = Field(default_factory=list, description="Hosts assigned to background worker role")
     user: str = Field(default="root", description="Default SSH user")
     ssh_port: int = Field(default=22, description="SSH port")
-    ssh_key: Optional[str] = Field(default=None, description="Path to SSH private key")
+    ssh_key: Optional[str] = Field(default=None, description="Path to SSH private key (.pem, id_ed25519, id_rsa)")
+    ssh_keys: List[str] = Field(default_factory=list, description="List of SSH private key paths")
+    ssh_password: Optional[str] = Field(default=None, description="SSH password (or env substitution ${SSH_PASSWORD})")
+    passphrase: Optional[str] = Field(default=None, description="Passphrase for encrypted SSH private key")
 
     @field_validator("web", "workers", mode="before")
     @classmethod

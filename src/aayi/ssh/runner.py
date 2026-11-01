@@ -37,11 +37,19 @@ class SSHFleetRunner:
         default_user: str = "root",
         default_port: int = 22,
         default_key: Optional[str] = None,
+        default_keys: Optional[List[str]] = None,
+        password: Optional[str] = None,
+        passphrase: Optional[str] = None,
         known_hosts: Optional[str] = None,
     ) -> None:
         self.default_user = default_user
         self.default_port = default_port
-        self.default_key = default_key
+        keys = list(default_keys or [])
+        if default_key and default_key not in keys:
+            keys.append(default_key)
+        self.default_keys = keys or None
+        self.password = password
+        self.passphrase = passphrase
         self.known_hosts = known_hosts
         self._host_color_map: Dict[str, str] = {}
 
@@ -65,7 +73,7 @@ class SSHFleetRunner:
         """Execute a single command on a remote host over SSH."""
         user = user or self.default_user
         port = port or self.default_port
-        client_keys = [key] if key else ([self.default_key] if self.default_key else None)
+        client_keys = [key] if key else self.default_keys
         color = self.get_host_color(host)
 
         if echo:
@@ -74,6 +82,8 @@ class SSHFleetRunner:
         options = asyncssh.SSHClientConnectionOptions(
             known_hosts=self.known_hosts,
             client_keys=client_keys,
+            password=self.password,
+            passphrase=self.passphrase,
         )
 
         try:
@@ -144,11 +154,13 @@ class SSHFleetRunner:
         async def _stream_single(host: str) -> None:
             user_name = user or self.default_user
             p = port or self.default_port
-            client_keys = [key] if key else ([self.default_key] if self.default_key else None)
+            client_keys = [key] if key else self.default_keys
             color = self.get_host_color(host)
             options = asyncssh.SSHClientConnectionOptions(
                 known_hosts=self.known_hosts,
                 client_keys=client_keys,
+                password=self.password,
+                passphrase=self.passphrase,
             )
             try:
                 async with asyncssh.connect(host, port=p, username=user_name, options=options) as conn:

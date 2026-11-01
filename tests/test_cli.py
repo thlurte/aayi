@@ -40,3 +40,25 @@ def test_cli_ci_init(tmp_path: Path, monkeypatch):
     assert "uvx aayi deploy" in content
     assert "astral-sh/setup-uv" in content
 
+
+def test_cli_overrides_helper():
+    from aayi.cli.main import _apply_cli_overrides
+    from aayi.config.models import DeployConfig, ServerConfig, ServiceDefinition
+
+    cfg = DeployConfig(
+        service="web",
+        image="myapp:latest",
+        servers=ServerConfig(web=["1.2.3.4"]),
+    )
+    assert cfg.services["web"].public is False
+
+    # Make public with custom subdomain from CLI
+    _apply_cli_overrides(cfg, domain="custom.example.com", public=True)
+    assert cfg.services["web"].public is True
+    assert cfg.services["web"].domain == "custom.example.com"
+    assert cfg.proxy.domain == "custom.example.com"
+
+    # Make private from CLI
+    _apply_cli_overrides(cfg, private=True)
+    assert cfg.services["web"].public is False
+

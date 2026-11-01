@@ -125,13 +125,24 @@ servers:
     - 192.168.1.10
   workers:
     - 192.168.1.11
-  user: root
+  user: ubuntu          # Default SSH user (e.g. root, ubuntu, ec2-user, debian)
+  ssh_port: 22          # Optional: custom SSH port
+  
+  # Option A: SSH Key / AWS .pem file
+  ssh_key: ~/.ssh/my-server-key.pem
+
+  # Option B: SSH Password (supports env var substitution)
+  # ssh_password: ${SSH_PASSWORD}
+
+  # Option C: Passphrase (if your private key is encrypted)
+  # passphrase: ${SSH_KEY_PASSPHRASE}
 
 registry:
   server: docker.io
   username: your-docker-user
   password: ${DOCKER_REGISTRY_PASSWORD}
 
+# Global proxy config (for single-container apps)
 proxy:
   domain: app.example.com
   app_port: 8000
@@ -149,6 +160,37 @@ env:
     - DATABASE_URL
 ```
 
+#### Or Multi-Service Configuration (Define Public vs. Private in Config)
+
+You can define multiple services in `config/deploy.yml`, specifying exactly which ones are **public** with their own domain/subdomain, and which ones are **private**:
+
+```yaml
+services:
+  # Public web frontend with its own subdomain & automatic HTTPS
+  web:
+    image: your-docker-user/myweb
+    public: true
+    domain: app.example.com
+    app_port: 3000
+    roles: [web]
+
+  # Public API microservice with a separate subdomain
+  api:
+    image: your-docker-user/myapi
+    public: true
+    domain: api.example.com
+    app_port: 8000
+    roles: [web]
+
+  # Private background worker (no domain, zero open ports, internal aayi-net only)
+  worker:
+    image: your-docker-user/myworker
+    public: false
+    command: python -m worker
+    roles: [workers]
+    depends_on: [api]
+```
+
 ### 4. Setup Target Servers
 
 Ensures official Docker CE and Caddy are running on all target hosts:
@@ -163,10 +205,72 @@ Builds the image with `docker buildx`, pushes to your registry, boots a new cont
 aayi deploy
 ```
 
-> **Tip:** Don't want to use an external Docker registry? Deploy directly to remote servers via in-memory tar streaming:
-> ```bash
-> aayi deploy --remote-build
-> ```
+---
+
+## Advanced Workflows
+
+### 1. Docker Compose Integration
+
+If your application is already defined in a `docker-compose.yml`, Aayi can parse and convert it directly into a zero-downtime, multi-service deployment setup:
+
+```bash
+# Convert docker-compose.yml into config/deploy.yml
+aayi compose convert --output config/deploy.yml
+```
+
+Or deploy directly from compose without generating files:
+```bash
+aayi deploy --compose docker-compose.yml
+```
+
+- **Public Web Services**: Services with exposed ports (e.g. `80:8000`) get automatic Caddy routes, domains, and HTTPS certificates.
+- **Private Microservices & Workers**: Services without host ports (e.g., Celery, Redis, background jobs) are isolated on the secure `aayi-net` bridge network so they communicate internally with zero external exposure.
+- **Dependencies (`depends_on`)**: Preserves startup order so databases/caches boot before dependent web servers.
+
+### 2. Override Domain and Public/Private Visibility from CLI
+
+You can override any container's public domain or switch it between public and private directly when deploying from the terminal:
+
+```bash
+# Expose container on a specific subdomain with automatic TLS:
+aayi deploy --domain api.example.com --public
+
+# Deploy a specific microservice with its own subdomain:
+aayi deploy --service analytics --domain stats.example.com --public
+
+# Force a container to be completely private (isolated to internal network):
+aayi deploy --service worker --private
+```
+
+### 3. Registry Options: Cloud, Local/Self-Hosted, or Registry-Free
+
+Aayi supports three flexible registry modes:
+
+#### Cloud Registries (Docker Hub, GitHub GHCR, AWS ECR, GCP Artifact Registry)
+```yaml
+registry:
+  server: ghcr.io  # or docker.io, 123456789.dkr.ecr.us-east-1.amazonaws.com
+  username: your-username
+  password: ${REGISTRY_TOKEN}
+```
+
+#### Self-Hosted & Local Private Registries (`registry:2` on LAN or VPN)
+If you run a local Docker registry inside your private network or on a local server (e.g. `192.168.1.50:5000` or `registry.internal:5000`):
+```yaml
+image: registry.internal:5000/myapp
+registry:
+  server: registry.internal:5000
+  # Username/password can be omitted if your internal registry requires no auth:
+  username: null
+  password: null
+```
+
+#### Zero-Registry Mode (Ephemeral Remote Build)
+Don't want to run or pay for any container registry? Deploy code directly over SSH:
+```bash
+aayi deploy --remote-build
+```
+Aayi packages your code directory into an in-memory tar stream, pipes it across the AsyncSSH tunnel directly to the target server's Docker daemon, and builds it on-server without ever uploading an image to the internet.
 
 ---
 
