@@ -39,6 +39,50 @@ app.add_typer(compose_app, name="compose")
 console = Console()
 
 
+def _apply_cli_overrides(
+    cfg: DeployConfig,
+    target_service: Optional[str] = None,
+    domain: Optional[str] = None,
+    public: Optional[bool] = None,
+    private: Optional[bool] = None,
+) -> None:
+    """Apply CLI overrides for domain, public, and private flags onto DeployConfig."""
+    is_private = private if private is not None else (False if public is True else None)
+    is_public = public if public is not None else (False if private is True else None)
+
+    # Determine services to update
+    targets = [target_service] if target_service else list(cfg.services.keys())
+
+    for name in targets:
+        if name in cfg.services:
+            srv = cfg.services[name]
+            if is_private is True:
+                srv.public = False
+            elif is_public is True:
+                srv.public = True
+            if domain:
+                srv.domain = domain
+                srv.domains = [domain]
+                srv.public = True
+
+    # Also update global proxy domain if applicable
+    if domain:
+        cfg.proxy.domain = domain
+        cfg.proxy.domains = [domain]
+
+
+def _build_runner(cfg: DeployConfig) -> SSHFleetRunner:
+    """Build an SSHFleetRunner from DeployConfig with all SSH keys, password, and passphrase."""
+    return SSHFleetRunner(
+        default_user=cfg.servers.user,
+        default_port=cfg.servers.ssh_port,
+        default_key=cfg.servers.ssh_key,
+        default_keys=cfg.servers.ssh_keys,
+        password=cfg.servers.ssh_password,
+        passphrase=cfg.servers.passphrase,
+    )
+
+
 @app.command()
 def init(
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing configuration files."),
@@ -64,11 +108,7 @@ def setup(
 ) -> None:
     """Prepare target servers: verify Docker CE and start Caddy reverse proxy."""
     cfg = load_config(config_path)
-    runner = SSHFleetRunner(
-        default_user=cfg.servers.user,
-        default_port=cfg.servers.ssh_port,
-        default_key=cfg.servers.ssh_key,
-    )
+    runner = _build_runner(cfg)
     deployer = Deployer(cfg)
 
     async def _run() -> None:
@@ -87,6 +127,9 @@ def deploy(
     compose: Optional[Path] = typer.Option(None, "--compose", help="Deploy directly from a docker-compose.yml file"),
     service: Optional[str] = typer.Option(None, "--service", "-s", help="Deploy only a specific service container"),
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Custom image tag / git revision to deploy"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Override public domain/subdomain from CLI (e.g. api.example.com)"),
+    public: Optional[bool] = typer.Option(None, "--public", help="Force container to be publicly accessible with domain/TLS"),
+    private: Optional[bool] = typer.Option(None, "--private", help="Force container to be private (isolated to aayi-net with no exposed ports)"),
     build: bool = typer.Option(True, "--build/--no-build", help="Build image locally before deployment"),
     push: bool = typer.Option(True, "--push/--no-push", help="Push image to registry after building"),
     remote_build: bool = typer.Option(False, "--remote-build", "-r", help="Stream source in memory via tar and build natively on the VPS (no registry needed)."),
@@ -96,6 +139,9 @@ def deploy(
         cfg = parse_compose_file(compose)
     else:
         cfg = load_config(config_path)
+
+    # Apply CLI visibility and domain overrides
+    _apply_cli_overrides(cfg, target_service=service, domain=domain, public=public, private=private)
 
     deployer = Deployer(cfg)
     asyncio.run(deployer.deploy(tag=tag, build=build, push=push, target_service=service, remote_build=remote_build))
@@ -107,12 +153,18 @@ def redeploy(
     compose: Optional[Path] = typer.Option(None, "--compose", help="Deploy directly from a docker-compose.yml file"),
     service: Optional[str] = typer.Option(None, "--service", "-s", help="Redeploy only a specific service container"),
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Tag to redeploy without rebuilding"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Override public domain/subdomain from CLI (e.g. api.example.com)"),
+    public: Optional[bool] = typer.Option(None, "--public", help="Force container to be publicly accessible with domain/TLS"),
+    private: Optional[bool] = typer.Option(None, "--private", help="Force container to be private (isolated to aayi-net with no exposed ports)"),
 ) -> None:
     """Redeploy an existing image tag on remote servers without rebuilding."""
     if compose:
         cfg = parse_compose_file(compose)
     else:
         cfg = load_config(config_path)
+
+    # Apply CLI visibility and domain overrides
+    _apply_cli_overrides(cfg, target_service=service, domain=domain, public=public, private=private)
 
     deployer = Deployer(cfg)
     asyncio.run(deployer.deploy(tag=tag, build=False, push=False, target_service=service))
@@ -159,11 +211,7 @@ def logs(
         console.print(f"[yellow]No hosts found for role '{role}'.[/yellow]")
         return
 
-    runner = SSHFleetRunner(
-        default_user=cfg.servers.user,
-        default_port=cfg.servers.ssh_port,
-        default_key=cfg.servers.ssh_key,
-    )
+    runner = _build_runner(cfg)
     cmd = f"docker logs {'-f' if follow else ''} --tail {tail} $(docker ps -q --filter 'label=aayi.service={cfg.service}' | head -n 1)"
 
     async def _run() -> None:
@@ -188,11 +236,7 @@ def exec(
         console.print("[red]No target host available.[/red]")
         raise typer.Exit(1)
 
-    runner = SSHFleetRunner(
-        default_user=cfg.servers.user,
-        default_port=cfg.servers.ssh_port,
-        default_key=cfg.servers.ssh_key,
-    )
+    runner = _build_runner(cfg)
     docker_cmd = f"docker exec -it $(docker ps -q --filter 'label=aayi.service={cfg.service}' | head -n 1) {command}"
     asyncio.run(runner.run_on_host(target_host, docker_cmd))
 
@@ -203,7 +247,7 @@ def proxy_status(
 ) -> None:
     """View current Caddy proxy status and routing across web hosts."""
     cfg = load_config(config_path)
-    runner = SSHFleetRunner(default_user=cfg.servers.user, default_port=cfg.servers.ssh_port, default_key=cfg.servers.ssh_key)
+    runner = _build_runner(cfg)
     caddy = CaddyManager(runner, cfg.proxy)
     asyncio.run(caddy.get_status(cfg.servers.web))
 
@@ -215,7 +259,7 @@ def proxy_reload(
 ) -> None:
     """Force Caddy to route traffic to a specific upstream port."""
     cfg = load_config(config_path)
-    runner = SSHFleetRunner(default_user=cfg.servers.user, default_port=cfg.servers.ssh_port, default_key=cfg.servers.ssh_key)
+    runner = _build_runner(cfg)
     caddy = CaddyManager(runner, cfg.proxy)
     asyncio.run(caddy.update_upstream(cfg.servers.web, target_port=port))
 

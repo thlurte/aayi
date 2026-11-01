@@ -22,6 +22,9 @@ class AccessoryManager:
             default_user=config.servers.user,
             default_port=config.servers.ssh_port,
             default_key=config.servers.ssh_key,
+            default_keys=config.servers.ssh_keys,
+            password=config.servers.ssh_password,
+            passphrase=config.servers.passphrase,
         )
 
     def _get_accessory(self, name: str) -> AccessoryConfig:
