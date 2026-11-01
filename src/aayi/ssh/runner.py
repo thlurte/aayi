@@ -47,6 +47,7 @@ class SSHFleetRunner:
         keys = list(default_keys or [])
         if default_key and default_key not in keys:
             keys.append(default_key)
+        self.default_key = default_key or (keys[0] if keys else None)
         self.default_keys = keys or None
         self.password = password
         self.passphrase = passphrase
