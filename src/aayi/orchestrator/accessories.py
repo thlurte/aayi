@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from typing import Optional
 
 from rich.console import Console
@@ -37,21 +38,30 @@ class AccessoryManager:
 
         console.print(f"[{color}][{acc.host}][/{color}] Booting accessory [cyan]{name}[/cyan] ({acc.image})...")
 
-        port_flag = f"-p {acc.port}" if acc.port else ""
-        vol_flags = " ".join([f"-v {v}" for v in acc.volumes])
-        env_flags = " ".join([f"-e {k}='{v}'" for k, v in acc.env.items()])
+        # Ensure port binds to localhost if not specified otherwise, to avoid exposing database to public internet
+        port_flag = ""
+        if acc.port:
+            port_val = str(acc.port)
+            if ":" in port_val and not port_val.startswith("127.0.0.1"):
+                port_val = f"127.0.0.1:{port_val}"
+            port_flag = f"-p {port_val}"
+
+        vol_flags = " ".join([f"-v {shlex.quote(v)}" for v in acc.volumes])
+        env_flags = " ".join([f"-e {shlex.quote(f'{k}={v}')}" for k, v in acc.env.items()])
 
         cmd = (
-            f"docker rm -f {container_name} 2>/dev/null || true; "
+            f"docker network inspect aayi-net >/dev/null 2>&1 || docker network create aayi-net; "
+            f"docker rm -f {shlex.quote(container_name)} 2>/dev/null || true; "
             f"docker run -d "
-            f"--name {container_name} "
+            f"--name {shlex.quote(container_name)} "
+            f"--network aayi-net "
             f"--restart unless-stopped "
             f"{port_flag} {vol_flags} {env_flags} "
-            f"{acc.image}"
+            f"{shlex.quote(acc.image)}"
         )
         res = await self.runner.run_on_host(acc.host, cmd, check=True)
         if res.success:
-            console.print(f"[{color}][{acc.host}][/{color}] [green]✓ Accessory {name} is running.[/green]")
+            console.print(f"[{color}][{acc.host}][/{color}] [green]✓ Accessory {name} is running securely on aayi-net.[/green]")
 
     async def stop(self, name: str) -> None:
         """Stop an accessory container."""

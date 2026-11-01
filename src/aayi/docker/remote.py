@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shlex
 import time
 from typing import Dict, List, Optional
 
@@ -46,7 +47,10 @@ class RemoteDocker:
             return
 
         console.print(f"[bold blue]Authenticating with registry {registry.server}...[/bold blue]")
-        cmd = f"echo '{registry.password}' | docker login {registry.server} -u '{registry.username}' --password-stdin"
+        cmd = (
+            f"printf '%s' {shlex.quote(registry.password)} | "
+            f"docker login {shlex.quote(registry.server)} -u {shlex.quote(registry.username)} --password-stdin"
+        )
         # We run with echo=False to avoid leaking passwords in terminal
         results = await self.runner.run_on_hosts(hosts, cmd, echo=False)
         for r in results:
@@ -104,20 +108,20 @@ class RemoteDocker:
         network: str = "aayi-net",
     ) -> SSHResult:
         """Start an application container. If host_port is None, container is private with no host port binding."""
-        env_flags = " ".join([f"-e {k}='{v}'" for k, v in env_vars.items()])
-        label_flags = " ".join([f"--label {k}='{v}'" for k, v in labels.items()])
-        cmd_suffix = f" {command}" if command else ""
+        env_flags = " ".join([f"-e {shlex.quote(f'{k}={v}')}" for k, v in env_vars.items()])
+        label_flags = " ".join([f"--label {shlex.quote(f'{k}={v}')}" for k, v in labels.items()])
+        cmd_suffix = f" {shlex.quote(command)}" if command else ""
         port_flag = f"-p 127.0.0.1:{host_port}:{container_port}" if host_port else ""
 
         run_cmd = (
             f"docker run -d "
-            f"--name {name} "
-            f"--network {network} "
+            f"--name {shlex.quote(name)} "
+            f"--network {shlex.quote(network)} "
             f"--restart unless-stopped "
             f"{port_flag} "
             f"{env_flags} "
             f"{label_flags} "
-            f"{image_tag}{cmd_suffix}"
+            f"{shlex.quote(image_tag)}{cmd_suffix}"
         )
         return await self.runner.run_on_host(host, run_cmd, check=True)
 
@@ -133,7 +137,7 @@ class RemoteDocker:
         color = self.runner.get_host_color(host)
         console.print(f"[{color}][{host}][/{color}] Waiting for healthcheck at [cyan]http://127.0.0.1:{port}{path}[/cyan] (timeout {timeout}s)...")
 
-        curl_cmd = f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}{path} || true"
+        curl_cmd = f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 {shlex.quote(f'http://127.0.0.1:{port}{path}')} || true"
         deadline = time.time() + timeout
 
         while time.time() < deadline:
