@@ -1,0 +1,155 @@
+# Aayi 🚀
+
+**A modern, Python-native equivalent of Ruby's Kamal.** Deploy containerized web apps anywhere—from $5 VPSs (Hetzner, DigitalOcean) to bare metal—with zero downtime, automated HTTPS, and zero Kubernetes complexity.
+
+Powered by **uv**, **AsyncSSH**, **Typer**, **Pydantic v2**, and **Caddy**.
+
+---
+
+## ✨ Features
+
+- **Zero-Downtime Container Swaps**: Seamlessly routes traffic between container revisions via Caddy's dynamic in-memory Admin API (`:2019`).
+- **Automatic HTTPS**: Full TLS certificate lifecycle via Let's Encrypt / ZeroSSL powered by Caddy.
+- **Concurrent SSH Execution**: Asynchronous, parallel multi-server operations powered by `AsyncSSH`.
+- **Type-Safe Declarative Config**: Strict validation of `config/deploy.yml` with friendly Pydantic v2 error messages.
+- **No Ruby Required**: Built for Python developers (FastAPI, Django, Flask, Litestar) who want Kamal's simplicity without installing Ruby/gem bundlers.
+- **Stateful Accessories**: Easily spin up and manage PostgreSQL, Redis, or MySQL containers with persistent Docker volumes.
+- **Instant Rollback**: Revert Caddy upstreams back to the prior container in milliseconds with `aayi rollback`.
+
+---
+
+## 🏗️ Architecture
+
+```
+                                 [ CLI: aayi ]
+                               (Typer + Rich UI)
+                                       │
+                              [ Config: deploy.yml ]
+                               (Pydantic v2 Models)
+                                       │
+                      ┌────────────────┴────────────────┐
+                      ▼                                 ▼
+             [ Local Builder ]                 [ AsyncSSH Fleet ]
+           (docker buildx push)             (Parallel Multi-Server Pool)
+                                                        │
+                              ┌─────────────────────────┴─────────────────────────┐
+                              ▼                                                   ▼
+                       [ Web Server(s) ]                                   [ Worker Server(s) ]
+                     ┌───────────────────┐                               ┌────────────────────┐
+                     │ Caddy (Port 80/443│                               │ Worker Container   │
+                     │  Admin API :2019) │                               └────────────────────┘
+                     └─────────┬─────────┘
+                               │ (Dynamic Route)
+                     ┌─────────┴─────────┐
+                     │ App Container     │
+                     │ (Port: 8000/8001) │
+                     └───────────────────┘
+```
+
+---
+
+## ⚡ Quickstart
+
+### 1. Installation
+
+Run directly with `uvx` (no installation required):
+```bash
+uvx aayi --help
+```
+
+Or install in your Python virtual environment using `uv`:
+```bash
+uv tool install aayi
+# or
+uv add --dev aayi
+```
+
+### 2. Initialize Your Project
+
+Generate starter `config/deploy.yml` and an optimized multi-stage `Dockerfile`:
+```bash
+aayi init
+```
+
+### 3. Configure `config/deploy.yml`
+
+```yaml
+service: myapp
+image: your-docker-user/myapp
+
+servers:
+  web:
+    - 192.168.1.10
+  workers:
+    - 192.168.1.11
+  user: root
+
+registry:
+  server: docker.io
+  username: your-docker-user
+  password: ${DOCKER_REGISTRY_PASSWORD}
+
+proxy:
+  domain: app.example.com
+  app_port: 8000
+  healthcheck_path: /healthz
+  drain_timeout: 10
+  tls: true
+  email: admin@example.com
+
+env:
+  clear:
+    PORT: "8000"
+    ENVIRONMENT: production
+  secret:
+    - SECRET_KEY
+    - DATABASE_URL
+```
+
+### 4. Setup Target Servers
+
+Ensures official Docker CE and Caddy are running on all target hosts:
+```bash
+aayi setup
+```
+
+### 5. Deploy with Zero Downtime
+
+Builds the image with `docker buildx`, pushes to your registry, boots a new container, runs health checks, and smoothly switches Caddy upstream traffic:
+```bash
+aayi deploy
+```
+
+---
+
+## 🛠️ Command Reference
+
+| Command | Description |
+| :--- | :--- |
+| `aayi init` | Scaffolds `config/deploy.yml`, `Dockerfile`, and `.dockerignore`. |
+| `aayi ci init` | Generates `.github/workflows/deploy.yml` for automated GitHub Actions CI/CD. |
+| `aayi setup` | Installs Docker CE (if missing) and boots Caddy reverse proxy on all hosts. |
+| `aayi deploy` | Full zero-downtime deployment (build, push, boot, healthcheck, swap Caddy traffic). |
+| `aayi redeploy` | Redeploy an existing image tag on remote servers without rebuilding locally. |
+| `aayi rollback` | Atomically revert Caddy upstream to the previous healthy container. |
+| `aayi logs` | Real-time multi-host unified log streaming with colored host labels. |
+| `aayi exec <cmd>` | Execute an ad-hoc command or interactive shell inside running container. |
+| `aayi proxy status` | Inspect current live Caddy routing state and upstreams. |
+| `aayi proxy reload` | Force Caddy to route traffic to a specific container port. |
+| `aayi accessory boot <name>` | Start an accessory (e.g. Postgres, Redis) with persistent volumes. |
+| `aayi accessory stop <name>` | Stop an accessory container. |
+| `aayi accessory logs <name>` | View or follow logs for an accessory container. |
+
+---
+
+## 🧪 Running Tests
+
+```bash
+uv run pytest -v
+```
+
+---
+
+## 📄 License
+
+MIT
