@@ -232,6 +232,7 @@ class Deployer:
             env_vars=env_vars,
             labels=labels,
             command=service.command,
+            volumes=service.volumes,
             network="aayi-net",
         )
 
@@ -290,6 +291,7 @@ class Deployer:
             env_vars=env_vars,
             labels=labels,
             command=service.command,
+            volumes=service.volumes,
             network="aayi-net",
         )
         console.print(f"[{color}][{host}][/{color}] [green]✓ Private service {service.name} is running securely on aayi-net.[/green]")

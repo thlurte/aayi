@@ -132,11 +132,13 @@ class RemoteDocker:
         env_vars: Dict[str, str],
         labels: Dict[str, str],
         command: Optional[str] = None,
+        volumes: Optional[List[str]] = None,
         network: str = "aayi-net",
     ) -> SSHResult:
         """Start an application container. If host_port is None, container is private with no host port binding."""
         env_flags = " ".join([f"-e {shlex.quote(f'{k}={v}')}" for k, v in env_vars.items()])
         label_flags = " ".join([f"--label {shlex.quote(f'{k}={v}')}" for k, v in labels.items()])
+        vol_flags = " ".join([f"-v {shlex.quote(v)}" for v in (volumes or [])])
         cmd_suffix = f" {shlex.quote(command)}" if command else ""
         port_flag = f"-p 127.0.0.1:{host_port}:{container_port}" if host_port else ""
 
@@ -146,6 +148,7 @@ class RemoteDocker:
             f"--network {shlex.quote(network)} "
             f"--restart unless-stopped "
             f"{port_flag} "
+            f"{vol_flags} "
             f"{env_flags} "
             f"{label_flags} "
             f"{shlex.quote(image_tag)}{cmd_suffix}"

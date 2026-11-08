@@ -100,3 +100,26 @@ def test_env_config_scalar_and_null_coercion():
     assert cfg.clear["EMPTY"] == ""
     assert cfg.clear["STRING"] == "already_str"
 
+
+def test_volumes_config(tmp_path: Path):
+    yaml_content = """
+service: statefulapp
+image: stateful/app:latest
+servers:
+  web:
+    - 10.0.0.1
+volumes:
+  - app_data:/data
+  - /var/log:/logs
+proxy:
+  domain: stateful.example.com
+  app_port: 8080
+"""
+    config_file = tmp_path / "deploy.yml"
+    config_file.write_text(yaml_content, encoding="utf-8")
+
+    cfg = load_config(config_file)
+    assert cfg.volumes == ["app_data:/data", "/var/log:/logs"]
+    assert cfg.services["statefulapp"].volumes == ["app_data:/data", "/var/log:/logs"]
+
+

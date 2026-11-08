@@ -109,6 +109,7 @@ class ServiceDefinition(BaseModel):
     roles: List[str] = Field(default_factory=lambda: ["web"], description="Server roles where this service runs")
     command: Optional[str] = Field(default=None, description="Command override to run in container")
     depends_on: List[str] = Field(default_factory=list, description="Services that must boot before this service")
+    volumes: List[str] = Field(default_factory=list, description="Volume mounts (e.g. 'data_vol:/path')")
 
     @property
     def all_domains(self) -> List[str]:
@@ -138,6 +139,7 @@ class DeployConfig(BaseModel):
     registry: Optional[RegistryConfig] = Field(default=None, description="Docker registry settings")
     proxy: ProxyConfig = Field(default_factory=ProxyConfig, description="Global reverse proxy configuration")
     env: EnvConfig = Field(default_factory=EnvConfig, description="Global environment variables")
+    volumes: List[str] = Field(default_factory=list, description="Volume mounts for single service")
     accessories: Dict[str, AccessoryConfig] = Field(default_factory=dict, description="Accessories like Redis or Postgres")
     services: Dict[str, ServiceDefinition] = Field(default_factory=dict, description="Multi-service container definitions")
 
@@ -160,6 +162,7 @@ class DeployConfig(BaseModel):
                 drain_timeout=self.proxy.drain_timeout,
                 env=self.env,
                 roles=["web"],
+                volumes=self.volumes,
             )
         elif self.services:
             for s_name, s_def in self.services.items():

@@ -130,6 +130,9 @@ def parse_compose_file(
         if isinstance(command, list):
             command = " ".join(command)
 
+        raw_volumes = s_data.get("volumes", [])
+        volumes = [str(v) for v in raw_volumes] if isinstance(raw_volumes, list) else []
+
         parsed_services[service_name] = ServiceDefinition(
             name=service_name,
             image=s_data.get("image"),
@@ -144,6 +147,7 @@ def parse_compose_file(
             roles=roles,
             command=command,
             depends_on=depends_on,
+            volumes=volumes,
         )
 
     # If servers are not provided, default to localhost or placeholder
