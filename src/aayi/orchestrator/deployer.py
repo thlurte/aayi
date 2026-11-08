@@ -188,8 +188,27 @@ class Deployer:
                     await self._deploy_private_service(host, s_def, revision, full_image_tag, env_vars)
 
         # Step 7: Update Caddy dynamic routing for all public services
-        if active_routes and web_hosts:
-            await self.caddy.update_multi_service_routes(web_hosts, active_routes)
+        if web_hosts:
+            # Preserve running routes for services in deploy.yml that were not targeted in this run
+            deployed_service_names = {r.service_name for r in active_routes}
+            for s_name, s_def in self.config.services.items():
+                if s_name not in deployed_service_names and s_def.public and s_def.all_domains:
+                    host = web_hosts[0]
+                    check_cmd = f"docker inspect -f '{{{{index .Config.Labels \"aayi.port\"}}}}' $(docker ps -q --filter 'label=aayi.service={s_name}' | head -n 1) 2>/dev/null || true"
+                    res = await self.runner.run_on_host(host, check_cmd, echo=False)
+                    port_str = res.stdout.strip()
+                    if port_str and port_str.isdigit():
+                        active_routes.append(
+                            ServiceRoute(
+                                service_name=s_name,
+                                domains=s_def.all_domains,
+                                target_port=int(port_str),
+                                tls=self.config.proxy.tls,
+                            )
+                        )
+
+            if active_routes:
+                await self.caddy.update_multi_service_routes(web_hosts, active_routes)
 
         # Step 8: Clean up stale images
         await self.remote_docker.prune(all_hosts)
