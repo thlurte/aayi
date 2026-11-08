@@ -140,12 +140,12 @@ class Deployer:
                         push=push,
                     )
 
-            # Step 4: Transfer or pull images on target hosts
-            is_direct = (not self.config.registry or not self.config.registry.server or not push)
             for s_def in ordered_services:
                 image_base = s_def.image or self.config.image
                 if image_base:
                     full_image_tag = self.resolve_image_tag(image_base, tag, revision)
+                    is_local_build = bool(build and (s_def.build_context or s_def.dockerfile))
+                    is_direct = is_local_build and (not self.config.registry or not self.config.registry.server or not push)
                     if is_direct:
                         await self.remote_docker.stream_image_to_hosts(all_hosts, full_image_tag)
                     else:
