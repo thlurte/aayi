@@ -46,6 +46,7 @@ jobs:
         run: bash -n install.sh
 
       - name: Run ShellCheck
+        if: runner.os == 'Linux'
         run: shellcheck install.sh
 
       - name: Test Installer Dry Run
