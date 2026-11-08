@@ -61,7 +61,7 @@ class RemoteDocker:
     async def pull_image(self, hosts: List[str], image_tag: str) -> None:
         """Pull the application image on all hosts concurrently."""
         console.print(f"[bold blue]Pulling image [cyan]{image_tag}[/cyan] on all hosts...[/bold blue]")
-        cmd = f"docker pull {image_tag}"
+        cmd = f"docker inspect {image_tag} >/dev/null 2>&1 || docker pull {image_tag}"
         results = await self.runner.run_on_hosts(hosts, cmd, check=True)
         for r in results:
             console.print(f"[{self.runner.get_host_color(r.host)}][{r.host}][/{self.runner.get_host_color(r.host)}] [green]✓ Image pulled.[/green]")
